@@ -170,98 +170,101 @@ function createAmbientEngine() {
       activeId = id
       const c = getCtx()
 
+      function makeLayer(opts) {
+        const buf = makeNoiseBuffer(4)
+        const src = c.createBufferSource()
+        src.buffer = buf
+        src.loop = true
+        let last = src
+        if (opts.filter) {
+          const f = c.createBiquadFilter()
+          f.type = opts.filter.type || 'lowpass'
+          f.frequency.value = opts.filter.freq || 1000
+          if (opts.filter.Q) f.Q.value = opts.filter.Q
+          last.connect(f)
+          last = f
+        }
+        const g = c.createGain()
+        g.gain.value = opts.gain || 0.1
+        last.connect(g)
+        const mod = opts.modulation
+        if (mod) {
+          const lfo = c.createOscillator()
+          const lfoG = c.createGain()
+          lfo.type = mod.type || 'sine'
+          lfo.frequency.value = mod.freq || 1
+          lfoG.gain.value = mod.amount || 0.03
+          lfo.connect(lfoG)
+          lfoG.connect(g.gain)
+          lfo.start()
+          src.lfo = lfo
+        }
+        src.start()
+        return { src, gain: g, lfo: src.lfo }
+      }
+
+      const allNodes = []
+      function addLayer(opts) {
+        const layer = makeLayer(opts)
+        layer.gain.connect(c.destination)
+        allNodes.push(layer.src, layer.gain)
+        if (layer.lfo) allNodes.push(layer.lfo)
+      }
+
       switch (id) {
         case 'whitenoise': {
-          const buf = makeNoiseBuffer(4)
-          const src = c.createBufferSource()
-          src.buffer = buf
-          src.loop = true
-          const gain = c.createGain()
-          gain.gain.value = 0.06
-          src.connect(gain)
-          gain.connect(c.destination)
-          src.start()
-          nodes = { src, gain }
+          addLayer({ gain: 0.05, filter: { type: 'bandpass', freq: 2000, Q: 0.7 } })
+          addLayer({ gain: 0.03, filter: { type: 'highpass', freq: 6000 } })
           break
         }
         case 'rain': {
-          const buf = makeNoiseBuffer(4)
-          const src = c.createBufferSource()
-          src.buffer = buf
-          src.loop = true
-          const hp = c.createBiquadFilter()
-          hp.type = 'highpass'
-          hp.frequency.value = 3000
-          const bp = c.createBiquadFilter()
-          bp.type = 'bandpass'
-          bp.frequency.value = 4000
-          bp.Q.value = 0.5
-          const gain = c.createGain()
-          gain.gain.value = 0.1
-          const lfo = c.createOscillator()
-          const lfoGain = c.createGain()
-          lfo.frequency.value = 2 + Math.random() * 2
-          lfoGain.gain.value = 0.04
-          lfo.connect(lfoGain)
-          lfoGain.connect(gain.gain)
-          src.connect(hp)
-          hp.connect(bp)
-          bp.connect(gain)
-          gain.connect(c.destination)
-          lfo.start()
-          src.start()
-          nodes = { src, gain, lfo }
+          addLayer({ gain: 0.08, filter: { type: 'highpass', freq: 4000 }, modulation: { freq: 3 + Math.random() * 2, amount: 0.04 } })
+          addLayer({ gain: 0.06, filter: { type: 'bandpass', freq: 1500, Q: 0.4 }, modulation: { freq: 1.5 + Math.random(), amount: 0.03 } })
+          addLayer({ gain: 0.04, filter: { type: 'lowpass', freq: 500 }, modulation: { freq: 0.3 + Math.random() * 0.5, amount: 0.02 } })
           break
         }
         case 'forest': {
-          const buf = makeNoiseBuffer(4)
-          const src = c.createBufferSource()
-          src.buffer = buf
-          src.loop = true
-          const lp = c.createBiquadFilter()
-          lp.type = 'lowpass'
-          lp.frequency.value = 800
-          const gain = c.createGain()
-          gain.gain.value = 0.05
-          src.connect(lp)
-          lp.connect(gain)
-          gain.connect(c.destination)
-          src.start()
-          nodes = { src, gain }
+          addLayer({ gain: 0.04, filter: { type: 'lowpass', freq: 1200 }, modulation: { type: 'sine', freq: 0.2 + Math.random() * 0.3, amount: 0.02 } })
+          addLayer({ gain: 0.03, filter: { type: 'bandpass', freq: 3000, Q: 1 }, modulation: { type: 'sine', freq: 0.5 + Math.random() * 0.5, amount: 0.02 } })
+          const chirpInt = setInterval(() => {
+            try {
+              const osc = c.createOscillator()
+              const g = c.createGain()
+              osc.type = 'sine'
+              osc.frequency.value = 2000 + Math.random() * 2000
+              g.gain.setValueAtTime(0, c.currentTime)
+              g.gain.linearRampToValueAtTime(0.02, c.currentTime + 0.05)
+              g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.3)
+              osc.connect(g)
+              g.connect(c.destination)
+              osc.start()
+              osc.stop(c.currentTime + 0.3)
+              allNodes.push(osc, g)
+            } catch {}
+          }, 3000 + Math.random() * 4000)
+          nodes.chirpInt = chirpInt
           break
         }
         case 'ocean': {
-          const buf = makeNoiseBuffer(4)
-          const src = c.createBufferSource()
-          src.buffer = buf
-          src.loop = true
-          const lp = c.createBiquadFilter()
-          lp.type = 'lowpass'
-          lp.frequency.value = 400
-          const gain = c.createGain()
-          gain.gain.value = 0.08
-          const lfo = c.createOscillator()
-          const lfoGain = c.createGain()
-          lfo.type = 'sine'
-          lfo.frequency.value = 0.1
-          lfoGain.gain.value = 0.06
-          lfo.connect(lfoGain)
-          lfoGain.connect(gain.gain)
-          src.connect(lp)
-          lp.connect(gain)
-          gain.connect(c.destination)
-          lfo.start()
-          src.start()
-          nodes = { src, gain, lfo }
+          addLayer({ gain: 0.07, filter: { type: 'lowpass', freq: 300 }, modulation: { type: 'sine', freq: 0.08 + Math.random() * 0.04, amount: 0.05 } })
+          addLayer({ gain: 0.05, filter: { type: 'bandpass', freq: 700, Q: 0.5 }, modulation: { type: 'sine', freq: 0.15 + Math.random() * 0.1, amount: 0.03 } })
+          addLayer({ gain: 0.03, filter: { type: 'highpass', freq: 3000 }, modulation: { type: 'sine', freq: 0.4 + Math.random() * 0.2, amount: 0.02 } })
           break
         }
       }
+      nodes = { allNodes }
     },
     stop() {
-      Object.values(nodes).forEach(n => {
-        try { n.disconnect() } catch {}
-        try { n.stop() } catch {}
-      })
+      if (nodes.chirpInt) {
+        clearInterval(nodes.chirpInt)
+        delete nodes.chirpInt
+      }
+      if (nodes.allNodes) {
+        nodes.allNodes.forEach(n => {
+          try { n.disconnect() } catch {}
+          try { n.stop() } catch {}
+        })
+      }
       nodes = {}
       activeId = null
     },
