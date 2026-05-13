@@ -37,10 +37,15 @@
 
 body {
   margin: 0;
-  min-height: 100svh;
   min-height: 100vh;
   background: var(--bg);
-  position: relative;
+  background-image: var(--bg-gradient);
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 body::before {

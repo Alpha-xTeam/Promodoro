@@ -42,14 +42,6 @@ export default defineConfig({
             purpose: 'any maskable',
           },
         ],
-        screenshot: [
-          {
-            src: 'screenshot.png',
-            sizes: '1280x720',
-            type: 'image/png',
-            form_factor: 'wide',
-          },
-        ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,json}'],
