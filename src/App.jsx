@@ -42,6 +42,13 @@ const translations = {
     min: 'min',
     ambientSounds: 'Ambient sounds',
     totalFocus: 'Total focus time',
+    focusScore: 'Focus Score',
+    achievements: 'Achievements',
+    unlocked: 'Unlocked!',
+    bestDay: 'Best day',
+    avgDaily: 'Avg daily',
+    shortcuts: 'Space: Start/Pause | R: Reset | S: Skip | 1-2-3: Modes',
+    accentColor: 'Accent Color',
     off: 'Off',
     rain: 'Rain',
     forest: 'Forest',
@@ -85,6 +92,13 @@ const translations = {
     min: 'دقيقة',
     ambientSounds: 'أصوات محيطة',
     totalFocus: 'إجمالي وقت التركيز',
+    focusScore: 'درجة التركيز',
+    achievements: 'الإنجازات',
+    unlocked: 'تم الفتح!',
+    bestDay: 'أفضل يوم',
+    avgDaily: 'المعدل اليومي',
+    shortcuts: 'مسافة: بدء/إيقاف | R: إعادة | S: تخطي | 1-2-3: أوضاع',
+    accentColor: 'لون التطبيق',
     off: 'إيقاف',
     rain: 'مطر',
     forest: 'غابة',
@@ -104,6 +118,20 @@ const translations = {
     ],
   },
 }
+
+const ACHIEVEMENTS = [
+  { id: 'first', icon: '🌱', en: 'First Session', ar: 'أول جلسة', descEn: 'Complete your first session', descAr: 'أكمل أول جلسة لك' },
+  { id: 'ten', icon: '🔥', en: 'Getting Started', ar: 'بداية موفقة', descEn: 'Complete 10 sessions', descAr: 'أكمل 10 جلسات' },
+  { id: 'fifty', icon: '💪', en: 'Focus Master', ar: 'سيد التركيز', descEn: 'Complete 50 sessions', descAr: 'أكمل 50 جلسة' },
+  { id: 'hundred', icon: '🏆', en: 'Century Club', ar: 'نادي المئة', descEn: 'Complete 100 sessions', descAr: 'أكمل 100 جلسة' },
+  { id: 'streak3', icon: '📈', en: 'Momentum', ar: 'زخم', descEn: '3-day streak', descAr: '3 أيام متتالية' },
+  { id: 'streak7', icon: '🌟', en: 'Week Warrior', ar: 'محارب الأسبوع', descEn: '7-day streak', descAr: '7 أيام متتالية' },
+  { id: 'streak30', icon: '💎', en: 'Unstoppable', ar: 'لا يُوقف', descEn: '30-day streak', descAr: '30 يوماً متتالياً' },
+  { id: 'goalFirst', icon: '🎯', en: 'Goal Crusher', ar: 'محطم الأهداف', descEn: 'Reach your daily goal once', descAr: 'حقق هدفك اليومي مرة' },
+  { id: 'goalWeek', icon: '📅', en: 'Consistent', ar: 'منتظم', descEn: 'Reach daily goal 7 days straight', descAr: 'حقق هدفك 7 أيام متتالية' },
+  { id: 'night', icon: '🦉', en: 'Night Owl', ar: 'بوم الليل', descEn: 'Focus after midnight', descAr: 'تركيز بعد منتصف الليل' },
+  { id: 'early', icon: '🌅', en: 'Early Bird', ar: 'طائر الصباح', descEn: 'Focus before 8 AM', descAr: 'تركيز قبل 8 صباحاً' },
+]
 
 const SOUND_OPTIONS = [
   { id: null, label: { en: 'Off', ar: 'إيقاف' } },
@@ -313,6 +341,10 @@ function App() {
   const [activeSound, setActiveSound] = useState(null)
   const [showSoundPicker, setShowSoundPicker] = useState(false)
   const [language, setLanguage] = useState(initialLang)
+  const [accentColor, setAccentColor] = useState(() => loadData('pomodoro-accent', '#FF9500'))
+  const [unlockedAchievements, setUnlockedAchievements] = useState(() => loadData('pomodoro-achievements', []))
+  const [showAchievements, setShowAchievements] = useState(false)
+  const [newAchievement, setNewAchievement] = useState(null)
 
   const ambientEngine = useRef(createAmbientEngine())
   const intervalRef = useRef(null)
@@ -481,8 +513,33 @@ function App() {
   })
 
   useEffect(() => {
+    document.documentElement.style.setProperty('--accent-work', accentColor)
+    document.documentElement.style.setProperty('--accent-work-light', accentColor + '99')
+    saveData('pomodoro-accent', accentColor)
+  }, [accentColor])
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.target.tagName === 'INPUT') return
+      if (showSettings) return
+      switch (e.key) {
+        case ' ': e.preventDefault(); toggleTimer(); break
+        case 'r': case 'R': resetTimer(); break
+        case 's': case 'S': skip(); break
+        case '1': switchMode('work'); break
+        case '2': switchMode('shortBreak'); break
+        case '3': switchMode('longBreak'); break
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [toggleTimer, resetTimer, skip, switchMode, showSettings])
+
+  useEffect(() => {
     return () => clearInterval(intervalRef.current)
   }, [])
+
+
 
   const formatTime = (s) => {
     const m = Math.floor(s / 60)
@@ -552,6 +609,92 @@ function App() {
   const goalProgress = settings.dailyGoalMinutes > 0 ? Math.min(todayFocusMinutes / settings.dailyGoalMinutes, 1) : 0
   const goalPercent = Math.round(goalProgress * 100)
 
+  const focusScore = (() => {
+    const todaySess = sessions.filter(s => new Date(s.date).toDateString() === today && s.type === 'work')
+    const todayMins = todaySess.reduce((sum, s) => sum + s.duration / 60, 0)
+    const goalPts = Math.min(40, Math.round((todayMins / Math.max(1, settings.dailyGoalMinutes)) * 40))
+    const sessionPts = Math.min(30, todaySess.length * 8)
+    const streakPts = Math.min(30, streak * 4)
+    return goalPts + sessionPts + streakPts
+  })()
+
+  const bestDay = (() => {
+    const dayTotals = {}
+    sessions.filter(s => s.type === 'work').forEach(s => {
+      const key = new Date(s.date).toDateString()
+      dayTotals[key] = (dayTotals[key] || 0) + s.duration / 60
+    })
+    let best = { day: '', mins: 0 }
+    Object.entries(dayTotals).forEach(([day, mins]) => {
+      if (mins > best.mins) best = { day, mins }
+    })
+    return best
+  })()
+
+  const avgDaily = (() => {
+    const days = new Set()
+    sessions.filter(s => s.type === 'work').forEach(s => {
+      days.add(new Date(s.date).toDateString())
+    })
+    const total = sessions.filter(s => s.type === 'work').reduce((sum, s) => sum + s.duration / 60, 0)
+    return days.size > 0 ? Math.round(total / days.size) : 0
+  })()
+
+  const prevUnlockedLength = useRef(unlockedAchievements.length)
+  useEffect(() => {
+    const total = sessions.filter(s => s.type === 'work').length
+    const unlocked = [...unlockedAchievements]
+    let newUnlock = null
+
+    const check = (id, condition) => {
+      if (!unlocked.includes(id) && condition) {
+        unlocked.push(id)
+        newUnlock = newUnlock || id
+      }
+    }
+
+    check('first', total >= 1)
+    check('ten', total >= 10)
+    check('fifty', total >= 50)
+    check('hundred', total >= 100)
+    check('streak3', streak >= 3)
+    check('streak7', streak >= 7)
+    check('streak30', streak >= 30)
+
+    const todayWork = sessions.filter(s => new Date(s.date).toDateString() === today && s.type === 'work')
+    const todayMins = todayWork.reduce((sum, s) => sum + s.duration / 60, 0)
+    check('goalFirst', todayMins >= settings.dailyGoalMinutes && todayMins > 0)
+
+    const lastSeven = []
+    for (let i = 0; i < 7; i++) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      const key = d.toDateString()
+      const dayMins = sessions
+        .filter(s => new Date(s.date).toDateString() === key && s.type === 'work')
+        .reduce((sum, s) => sum + s.duration / 60, 0)
+      lastSeven.push(dayMins)
+    }
+    check('goalWeek', lastSeven.every(m => m >= settings.dailyGoalMinutes))
+
+    const lastSession = sessions[sessions.length - 1]
+    if (lastSession) {
+      const hour = new Date(lastSession.date).getHours()
+      check('night', hour >= 0 && hour < 5)
+      check('early', hour >= 5 && hour < 8)
+    }
+
+    if (newUnlock) {
+      setTimeout(() => { setNewAchievement(newUnlock); setTimeout(() => setNewAchievement(null), 4000) }, 0)
+    }
+
+    if (unlocked.length !== prevUnlockedLength.current) {
+      prevUnlockedLength.current = unlocked.length
+      setTimeout(() => setUnlockedAchievements(unlocked), 0)
+      saveData('pomodoro-achievements', unlocked)
+    }
+  })
+
   const updateSetting = (key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }))
   }
@@ -589,7 +732,7 @@ function App() {
               className="tab-indicator"
               style={{
                 width: `${100 / MODES.length}%`,
-                transform: `translateX(${activeTabIndex * 100}%)`,
+                transform: language === 'ar' ? `translateX(${-activeTabIndex * 100}%)` : `translateX(${activeTabIndex * 100}%)`,
               }}
             />
           </div>
@@ -738,9 +881,51 @@ function App() {
             <div className="total-stats">
               {t('totalFocus')}: <strong>{Math.floor(totalMinutesAll / 60)}h {totalMinutesAll % 60}m</strong>
             </div>
+
+            <div className="insights">
+              <span>{t('focusScore')}: <strong className="score">{focusScore}/100</strong></span>
+              {bestDay.mins > 0 && (
+                <span>{t('bestDay')}: <strong>{bestDay.day.slice(0, 3)}</strong> ({Math.round(bestDay.mins)}{t('min')})</span>
+              )}
+              <span>{t('avgDaily')}: <strong>{avgDaily}</strong> {t('min')}</span>
+            </div>
+
+            <div className="achievements-section">
+              <button className="ach-toggle" onClick={() => setShowAchievements(s => !s)}>
+                <span>{t('achievements')} ({unlockedAchievements.length}/{ACHIEVEMENTS.length})</span>
+                <span className={`ach-arrow ${showAchievements ? 'open' : ''}`}>▾</span>
+              </button>
+              {showAchievements && (
+                <div className="ach-grid">
+                  {ACHIEVEMENTS.map(a => {
+                    const unlocked = unlockedAchievements.includes(a.id)
+                    return (
+                      <div key={a.id} className={`ach-item ${unlocked ? 'unlocked' : 'locked'}`}>
+                        <span className="ach-icon">{unlocked ? a.icon : '🔒'}</span>
+                        <span className="ach-name">{language === 'ar' ? a.ar : a.en}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </main>
+
+      {newAchievement && (
+        <div className="ach-notification">
+          {ACHIEVEMENTS.find(a => a.id === newAchievement)?.icon}
+          <span>{t('unlocked')} {language === 'ar' ? ACHIEVEMENTS.find(a => a.id === newAchievement)?.ar : ACHIEVEMENTS.find(a => a.id === newAchievement)?.en}</span>
+        </div>
+      )}
+
+      <div className="shortcuts-hint" title={t('shortcuts')}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="4" width="20" height="16" rx="2"/>
+          <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01"/>
+        </svg>
+      </div>
 
       <footer className="footer">
         <span>v1.0.0</span>
@@ -801,6 +986,20 @@ function App() {
                 value={settings.dailyGoalMinutes}
                 onChange={e => updateSetting('dailyGoalMinutes', Number(e.target.value))}
               />
+            </div>
+
+            <div className="setting-group">
+              <label>{t('accentColor')}</label>
+              <div className="color-options">
+                {['#FF9500', '#FF3B30', '#007AFF', '#34C759', '#AF52DE', '#FF2D55', '#5856D6', '#00C7BE'].map(c => (
+                  <button
+                    key={c}
+                    className={`color-dot ${accentColor === c ? 'active' : ''}`}
+                    style={{ background: c }}
+                    onClick={() => setAccentColor(c)}
+                  />
+                ))}
+              </div>
             </div>
 
             <div className="setting-group toggle-group">
