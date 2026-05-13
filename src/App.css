@@ -579,7 +579,7 @@
   align-items: center;
   justify-content: center;
   z-index: 100;
-  padding: 16px;
+  padding: 12px;
   animation: fade-in 250ms ease-out;
 }
 
@@ -594,12 +594,16 @@
   padding: 32px;
   width: 100%;
   max-width: 380px;
+  max-height: 90dvh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
   animation: slide-up 350ms cubic-bezier(0.25, 0.1, 0.25, 1);
   border: 1px solid var(--card-border);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 @keyframes slide-up {
@@ -716,8 +720,59 @@
     font-size: 24px;
   }
 
+  .overlay {
+    padding: 8px;
+    align-items: flex-end;
+  }
+
   .settings-panel {
-    padding: 24px;
+    padding: 24px 20px;
+    max-width: 100%;
+    max-height: 85dvh;
+    border-radius: 20px 20px 0 0;
+    gap: 16px;
+  }
+
+  .settings-panel h2 {
+    font-size: 22px;
+  }
+
+  .setting-group {
+    padding: 12px;
+    margin: 0 -12px;
+  }
+
+  .setting-group label {
+    font-size: 14px;
+  }
+
+  input[type="range"] {
+    height: 6px;
+  }
+
+  .setting-group.toggle-group {
+    padding: 8px 12px;
+  }
+
+  .close-btn {
+    height: 48px;
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 380px) {
+  .settings-panel {
+    padding: 16px 12px;
+    gap: 12px;
+  }
+
+  .setting-group {
+    padding: 8px;
+    margin: 0 -8px;
+  }
+
+  .setting-group label {
+    font-size: 13px;
   }
 }
 

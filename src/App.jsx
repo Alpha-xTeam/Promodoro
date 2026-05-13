@@ -385,7 +385,7 @@ function App() {
   }, [getDuration])
 
   const notify = useCallback((title, body) => {
-    if (Notification.permission === 'granted') {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       new Notification(title, { body })
     }
   }, [])
@@ -474,7 +474,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (Notification.permission === 'default') {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission()
     }
   }, [])
